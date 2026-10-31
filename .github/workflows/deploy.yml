@@ -50,6 +50,11 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: b6ec751c0862027ba269faf7029b2501
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: node node_modules/wrangler/bin/wrangler.js deploy --env=""
+        run: |
+          curl --fail --silent --show-error \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/openwebui/settings" \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            | jq --exit-status '[.result.bindings[] | select(.type == "secret_text") | .name] | contains(["DATABASE_URL", "WEBUI_SECRET_KEY"])'
+          node node_modules/wrangler/bin/wrangler.js deploy --env=""
       - name: Verify public endpoints and database
         run: npm run verify
