@@ -31,6 +31,11 @@
       "custom_domain": true
     },
     {
+      "pattern": "openwebui.pollinations.app",
+      "zone_name": "pollinations.app",
+      "custom_domain": true
+    },
+    {
       "pattern": "openwebui.pollinations.ai",
       "zone_name": "pollinations.ai",
       "custom_domain": true
@@ -39,7 +44,7 @@
   // Keep the single instance warm; a cold start pulls a ~1.5 GB image.
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
-    "WEBUI_URL": "https://openwebui.pollinations.ai",
+    "WEBUI_URL": "https://openwebui.pollinations.app",
     "GEN_URL": "https://gen.pollinations.ai/v1",
     "ENTER_URL": "https://enter.pollinations.ai",
     "MCP_URL": "https://mcp.pollinations.ai/",
