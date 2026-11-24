@@ -6,7 +6,7 @@ const DATABASE_URL = required("DATABASE_URL");
 const CONTAINER_NAME =
     new URL(DATABASE_URL).hostname ===
     "pollinations-openwebui-prod.postgres.database.azure.com"
-        ? "azure"
+        ? "app"
         : "primary";
 const WEBUI_URL = required("WEBUI_URL");
 const GEN_URL = required("GEN_URL");
@@ -182,6 +182,12 @@ export default {
                 status: 503,
                 headers: { "Cache-Control": "no-store", "Retry-After": "300" },
             });
+        }
+        if (!env.OPENWEBUI_CUTOVER_IP && url.hostname === "openwebui.pollinations.ai") {
+            url.protocol = "https:";
+            url.hostname = new URL(WEBUI_URL).hostname;
+            url.port = "";
+            return Response.redirect(url.href, 308);
         }
         const response = await openwebui(env).fetch(request);
         if (response.webSocket) return response;

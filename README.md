@@ -12,7 +12,8 @@ the consent screen mints a budgeted `sk_` which Open WebUI forwards to
 `gen.pollinations.ai` per user (`auth_type: system_oauth`), so every chat is
 paid from the signed-in user's own wallet.
 
-- Public: https://openwebui.pollinations.ai (alias https://openwebui.myceli.ai)
+- Public: https://openwebui.pollinations.app (alias https://openwebui.myceli.ai)
+- Legacy: https://openwebui.pollinations.ai redirects to the public hostname.
 - Staging: https://openwebui-staging.elliot-b6e.workers.dev
 - Login: OAuth 2.1 code + PKCE against the environment's Enter URL. Public
   client, no secret. Discovery is the RFC 8414 document; Pollinations serves no
@@ -110,7 +111,7 @@ instead; an admin key or JWT is needed, and the script reads each form before
 changing it so `DEFAULT_MODEL_METADATA` (builtin tools off) is not reset:
 
 ```bash
-OWUI_URL=https://openwebui.pollinations.ai OWUI_ENTER_URL=https://enter.pollinations.ai OWUI_TOKEN=<admin key> node scripts/apply-ui-defaults.mjs
+OWUI_URL=https://openwebui.pollinations.app OWUI_ENTER_URL=https://enter.pollinations.ai OWUI_TOKEN=<admin key> node scripts/apply-ui-defaults.mjs
 ```
 
 No restart is needed; users see the change on their next page load. A user's
@@ -219,7 +220,12 @@ the MCP integration before retiring the monorepo deployment. Retiring the old
 `apps/openwebui/deploy.json` prevents two repositories from deploying the same
 Worker.
 
-Use `npm run verify` to check the public `.ai` hostname and the Myceli alias.
+The Cloudflare `pollinations.app` zone has an exact `openwebui.pollinations.app/*`
+route with no Worker assigned. It lets the Open WebUI custom domain handle
+requests to that hostname while Gen serves its wildcard route.
+
+Run `npm run verify -- --redirect` to check both live hostnames and the legacy
+redirect.
 
 To roll back a code change, revert it through `main` and promote the revert to
 `production`. To roll back the repository handoff, disable this repository’s
@@ -239,7 +245,7 @@ cold-starts. Verified on staging 2026-09-16: `/health/db` 0.9 s → 0.3 s.
 ## Login requirements on the Pollinations side
 
 - The production App Key (`pk_`) needs the exact callback URI
-  `https://openwebui.pollinations.ai/oauth/oidc/callback`. Staging has its own
+  `https://openwebui.pollinations.app/oauth/oidc/callback`. Staging has its own
   App Key and callback.
 - `OAUTH_CLIENT_SECRET` stays empty. With a secret, authlib switches to Basic
   auth and drops `client_id` from the token request, which the Pollinations
