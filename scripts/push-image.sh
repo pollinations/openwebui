@@ -2,11 +2,8 @@
 # Mirror the upstream Open WebUI image into the Cloudflare registry so deploys
 # need no Docker build. Cloudflare Containers cannot pull from ghcr.io directly.
 #
-# Needs a Docker daemon. None runs on our Macs: point DOCKER_HOST at the
-# monitoring-agents EC2 box (Docker Engine installed there, 2026-09-03):
-#   DOCKER_HOST=ssh://ubuntu@3.221.108.127 npm run push-image
-# Containers run linux/amd64, so the pull is pinned to that platform even
-# though the box is arm64.
+# Requires access to a Docker daemon. Pull the linux/amd64 image for Cloudflare
+# Containers regardless of the host architecture.
 set -euo pipefail
 
 VERSION=${1:-0.11.3}
