@@ -36,6 +36,11 @@
       "zone_name": "pollinations.app",
       "custom_domain": true
     },
+    // The exact route takes precedence over the site's wildcard Worker.
+    {
+      "pattern": "openwebui.pollinations.app/*",
+      "zone_name": "pollinations.app"
+    },
     {
       "pattern": "openwebui.pollinations.ai",
       "zone_name": "pollinations.ai",
