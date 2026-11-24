@@ -2,7 +2,12 @@ import { env as workerEnv } from "cloudflare:workers";
 import { Container, getContainer } from "@cloudflare/containers";
 import { banners, PINNED_MODELS, PROMPT_SUGGESTIONS } from "./ui-defaults.js";
 
-const CONTAINER_NAME = "primary";
+const DATABASE_URL = required("DATABASE_URL");
+const CONTAINER_NAME =
+    new URL(DATABASE_URL).hostname ===
+    "pollinations-openwebui-prod.postgres.database.azure.com"
+        ? "azure"
+        : "primary";
 const WEBUI_URL = required("WEBUI_URL");
 const GEN_URL = required("GEN_URL");
 
@@ -32,7 +37,7 @@ export class OpenWebUIContainer extends Container {
         PORT: "8080",
         WEBUI_URL,
         WEBUI_SECRET_KEY: required("WEBUI_SECRET_KEY"),
-        DATABASE_URL: required("DATABASE_URL"),
+        DATABASE_URL,
         VECTOR_DB: "pgvector",
 
         // Login: Pollinations OAuth 2.1 (code + PKCE S256, public client).
@@ -167,6 +172,27 @@ function openwebui(env) {
 
 export default {
     async fetch(request, env) {
+        const url = new URL(request.url);
+        if (
+            env.OPENWEBUI_CUTOVER_IP &&
+            request.headers.get("CF-Connecting-IP") !== env.OPENWEBUI_CUTOVER_IP &&
+            !(request.method === "GET" && (url.pathname === "/health" || url.pathname === "/health/db"))
+        ) {
+            return new Response("Open WebUI is temporarily unavailable while we move its database. Please try again shortly.", {
+                status: 503,
+                headers: { "Cache-Control": "no-store", "Retry-After": "300" },
+            });
+        }
+        if (
+            CONTAINER_NAME === "azure" &&
+            !env.OPENWEBUI_CUTOVER_IP &&
+            url.hostname === "openwebui.pollinations.ai"
+        ) {
+            url.protocol = "https:";
+            url.hostname = "openwebui.pollinations.app";
+            url.port = "";
+            return Response.redirect(url.href, 308);
+        }
         const response = await openwebui(env).fetch(request);
         if (response.webSocket) return response;
         // Send the full chat URL as the referrer when a user follows a link
