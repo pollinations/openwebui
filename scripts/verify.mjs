@@ -10,11 +10,18 @@ export async function verifyHealth(url) {
     assert.equal((await response.json()).status, true, `${url}: unhealthy`);
 }
 
+export async function verifyRedirect(url, expectedLocation) {
+    const response = await fetch(url, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(15_000),
+    });
+    assert.equal(response.status, 308, `${url}: expected a permanent redirect`);
+    assert.equal(response.headers.get("location"), expectedLocation);
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-    const origins = [
-        "https://openwebui.pollinations.ai",
-        "https://openwebui.myceli.ai",
-    ];
+    const canonical = "https://openwebui.pollinations.app";
+    const origins = [canonical, "https://openwebui.myceli.ai"];
     for (const origin of origins) {
         for (const path of ["/health", "/health/db"]) {
             const url = `${origin}${path}`;
@@ -29,5 +36,13 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
                 }
             }
         }
+    }
+    if (process.argv.includes("--redirect")) {
+        const path = "/c/cutover-verification?source=legacy";
+        await verifyRedirect(
+            `https://openwebui.pollinations.ai${path}`,
+            `${canonical}${path}`,
+        );
+        console.log("Verified the legacy hostname redirects with its path and query.");
     }
 }
