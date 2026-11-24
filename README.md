@@ -188,9 +188,22 @@ locked dependencies with lifecycle scripts disabled and exposes the token only
 to Wrangler. The account ID is public configuration in the workflow.
 
 Ordinary deploys retain the Worker’s existing `DATABASE_URL` and
-`WEBUI_SECRET_KEY`. CI does not receive the database password or SOPS key and
-does not push secrets, reseed database settings, rebuild the image or delete the
-container. Secret changes are separate, explicitly approved maintenance.
+`WEBUI_SECRET_KEY`. For an approved database cutover, update the encrypted
+production `DATABASE_URL` and the matching GitHub Actions `production`
+environment secret. Dispatch **Deploy / Cloudflare production** on `production`
+with `sync_database_url` enabled. Wrangler applies `DATABASE_URL` in the same
+deployment and preserves `WEBUI_SECRET_KEY`. Restart the container so it picks
+up the new connection, and confirm its connections on the target database.
+
+Record the active Worker version before cutover and keep user writes paused
+through both the final database copy and verification. The production restore
+keeps accounts, chats, and document search. Skip `oauth_session` data and the
+legacy `config_before_*` snapshots so users sign in again and stale credentials
+stay out of Azure. Compare source and target row counts without logging records.
+If checks fail before reopening writes, dispatch the same production workflow
+with `rollback_worker_version` set to the recorded version, restart the container,
+and confirm it is connected to EC2 before reopening. Once Azure has accepted
+user writes, reconcile those writes before pointing traffic back to EC2.
 
 Staging retains its existing configuration and database. An authorized operator
 can run `npm run deploy:staging`; changes to its secrets are separate. The

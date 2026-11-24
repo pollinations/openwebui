@@ -5,6 +5,14 @@ on:
   push:
     branches: [main, production]
   workflow_dispatch:
+    inputs:
+      sync_database_url:
+        description: Apply the approved production DATABASE_URL during deployment
+        type: boolean
+        default: false
+      rollback_worker_version:
+        description: Restore a previously deployed Worker version during cutover
+        type: string
 
 permissions:
   contents: read
@@ -50,11 +58,46 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: b6ec751c0862027ba269faf7029b2501
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SYNC_DATABASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_database_url }}
+          DATABASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_database_url && secrets.DATABASE_URL || '' }}
+          ROLLBACK_WORKER_VERSION: ${{ inputs.rollback_worker_version }}
         run: |
-          curl --fail --silent --show-error \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/openwebui/settings" \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            | jq --exit-status '[.result.bindings[] | select(.type == "secret_text") | .name] | contains(["DATABASE_URL", "WEBUI_SECRET_KEY"])'
-          node node_modules/wrangler/bin/wrangler.js deploy --env=""
+          check_secret_bindings() {
+            curl --fail --silent --show-error \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/openwebui/settings" \
+              --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              | jq --exit-status '[.result.bindings[] | select(.type == "secret_text") | .name] | contains(["DATABASE_URL", "WEBUI_SECRET_KEY"])'
+          }
+          check_secret_bindings
+          if [[ -n "$ROLLBACK_WORKER_VERSION" ]]; then
+            if [[ "$SYNC_DATABASE_URL" == true || ! "$ROLLBACK_WORKER_VERSION" =~ ^[[:xdigit:]]{8}(-[[:xdigit:]]{4}){3}-[[:xdigit:]]{12}$ ]]; then
+              echo 'Use a Worker version UUID and leave sync_database_url off for rollback.' >&2
+              exit 1
+            fi
+            node node_modules/wrangler/bin/wrangler.js rollback "$ROLLBACK_WORKER_VERSION" --env="" --yes --message "Open WebUI database cutover rollback"
+            check_secret_bindings
+            exit
+          fi
+          deploy_args=()
+          if [[ "$SYNC_DATABASE_URL" == true ]]; then
+            if [[ -z "$DATABASE_URL" ]]; then
+              echo 'DATABASE_URL is missing from the production environment.' >&2
+              exit 1
+            fi
+            secret_file=$(mktemp)
+            trap 'rm -f "$secret_file"' EXIT
+            jq -n '{DATABASE_URL: env.DATABASE_URL}' > "$secret_file"
+            unset DATABASE_URL
+            deploy_args+=(--secrets-file "$secret_file")
+          fi
+          node node_modules/wrangler/bin/wrangler.js deploy --env="" "${deploy_args[@]}"
+          check_secret_bindings
       - name: Verify public endpoints and database
-        run: npm run verify
+        env:
+          ROLLBACK_WORKER_VERSION: ${{ inputs.rollback_worker_version }}
+        run: |
+          if [[ -n "$ROLLBACK_WORKER_VERSION" ]]; then
+            npm run verify -- --legacy
+          else
+            npm run verify
+          fi

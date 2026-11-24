@@ -24,7 +24,10 @@ export async function verifyRedirect(url, expectedLocation) {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const canonical = "https://openwebui.pollinations.app";
-    const origins = [canonical, "https://openwebui.myceli.ai"];
+    const publicOrigin = process.argv.includes("--legacy")
+        ? "https://openwebui.pollinations.ai"
+        : canonical;
+    const origins = [publicOrigin, "https://openwebui.myceli.ai"];
     for (const origin of origins) {
         for (const path of ["/health", "/health/db"]) {
             const url = `${origin}${path}`;
