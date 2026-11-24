@@ -192,8 +192,9 @@ Ordinary deploys retain the Worker’s existing `DATABASE_URL` and
 production `DATABASE_URL` and the matching GitHub Actions `production`
 environment secret. Dispatch **Deploy / Cloudflare production** on `production`
 with `sync_database_url` enabled. Wrangler applies `DATABASE_URL` in the same
-deployment and preserves `WEBUI_SECRET_KEY`. Restart the container so it picks
-up the new connection, and confirm its connections on the target database.
+deployment and preserves `WEBUI_SECRET_KEY`. The Azure connection starts a
+fresh container without deleting the EC2-backed instance. Confirm the fresh
+container's connections on the target database.
 
 Record the active Worker version before cutover and keep user writes paused
 through both the final database copy and verification. The production restore
@@ -201,8 +202,8 @@ keeps accounts, chats, and document search. Skip `oauth_session` data and the
 legacy `config_before_*` snapshots so users sign in again and stale credentials
 stay out of Azure. Compare source and target row counts without logging records.
 If checks fail before reopening writes, dispatch the same production workflow
-with `rollback_worker_version` set to the recorded version, restart the container,
-and confirm it is connected to EC2 before reopening. Once Azure has accepted
+with `rollback_worker_version` set to the recorded version and confirm the
+container is connected to EC2 before reopening. Once Azure has accepted
 user writes, reconcile those writes before pointing traffic back to EC2.
 
 Staging retains its existing configuration and database. An authorized operator

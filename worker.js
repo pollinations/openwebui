@@ -2,7 +2,12 @@ import { env as workerEnv } from "cloudflare:workers";
 import { Container, getContainer } from "@cloudflare/containers";
 import { banners, PINNED_MODELS, PROMPT_SUGGESTIONS } from "./ui-defaults.js";
 
-const CONTAINER_NAME = "primary";
+const DATABASE_URL = required("DATABASE_URL");
+const CONTAINER_NAME =
+    new URL(DATABASE_URL).hostname ===
+    "pollinations-openwebui-prod.postgres.database.azure.com"
+        ? "azure"
+        : "primary";
 const WEBUI_URL = required("WEBUI_URL");
 const GEN_URL = required("GEN_URL");
 
@@ -32,7 +37,7 @@ export class OpenWebUIContainer extends Container {
         PORT: "8080",
         WEBUI_URL,
         WEBUI_SECRET_KEY: required("WEBUI_SECRET_KEY"),
-        DATABASE_URL: required("DATABASE_URL"),
+        DATABASE_URL,
         VECTOR_DB: "pgvector",
 
         // Login: Pollinations OAuth 2.1 (code + PKCE S256, public client).
