@@ -10,24 +10,11 @@ export async function verifyHealth(url) {
     assert.equal((await response.json()).status, true, `${url}: unhealthy`);
 }
 
-export async function verifyRedirect(url, expectedLocation) {
-    const response = await fetch(url, {
-        redirect: "manual",
-        signal: AbortSignal.timeout(15_000),
-    });
-    assert.ok(
-        response.status === 301 || response.status === 308,
-        `${url}: expected permanent redirect, got HTTP ${response.status}`,
-    );
-    assert.equal(response.headers.get("location"), expectedLocation);
-}
-
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-    const canonical = "https://openwebui.pollinations.app";
-    const publicOrigin = process.argv.includes("--legacy")
-        ? "https://openwebui.pollinations.ai"
-        : canonical;
-    const origins = [publicOrigin, "https://openwebui.myceli.ai"];
+    const origins = [
+        "https://openwebui.pollinations.ai",
+        "https://openwebui.myceli.ai",
+    ];
     for (const origin of origins) {
         for (const path of ["/health", "/health/db"]) {
             const url = `${origin}${path}`;
@@ -42,13 +29,5 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
                 }
             }
         }
-    }
-    if (process.argv.includes("--cutover")) {
-        const path = "/c/cutover-verification?source=legacy";
-        await verifyRedirect(
-            `https://openwebui.pollinations.ai${path}`,
-            `${canonical}${path}`,
-        );
-        console.log("Verified permanent redirect from the old hostname.");
     }
 }
