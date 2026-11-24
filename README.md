@@ -196,8 +196,10 @@ deployment and preserves `WEBUI_SECRET_KEY`. The Azure connection starts a
 fresh container without deleting the EC2-backed instance. Confirm the fresh
 container's connections on the target database.
 
-Record the active Worker version before cutover and keep user writes paused
-through both the final database copy and verification. The production restore
+Record the active Worker version before cutover and dispatch the deployment
+with `cutover_test_ip` to admit only the operator and the public health checks.
+Keep that IP set when dispatching `sync_database_url`. After testing with the
+operator account, dispatch without inputs to restore general access. The production restore
 keeps accounts, chats, and document search. Skip `oauth_session` data and the
 legacy `config_before_*` snapshots so users sign in again and stale credentials
 stay out of Azure. Compare source and target row counts without logging records.

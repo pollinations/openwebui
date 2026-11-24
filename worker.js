@@ -172,6 +172,17 @@ function openwebui(env) {
 
 export default {
     async fetch(request, env) {
+        const path = new URL(request.url).pathname;
+        if (
+            env.OPENWEBUI_CUTOVER_IP &&
+            request.headers.get("CF-Connecting-IP") !== env.OPENWEBUI_CUTOVER_IP &&
+            !(request.method === "GET" && (path === "/health" || path === "/health/db"))
+        ) {
+            return new Response("Open WebUI is temporarily unavailable while we move its database. Please try again shortly.", {
+                status: 503,
+                headers: { "Cache-Control": "no-store", "Retry-After": "300" },
+            });
+        }
         const response = await openwebui(env).fetch(request);
         if (response.webSocket) return response;
         // Send the full chat URL as the referrer when a user follows a link
