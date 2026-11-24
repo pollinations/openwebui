@@ -6,7 +6,7 @@ const DATABASE_URL = required("DATABASE_URL");
 const CONTAINER_NAME =
     new URL(DATABASE_URL).hostname ===
     "pollinations-openwebui-prod.postgres.database.azure.com"
-        ? "azure"
+        ? "app"
         : "primary";
 const WEBUI_URL = required("WEBUI_URL");
 const GEN_URL = required("GEN_URL");

@@ -9,7 +9,8 @@
     {
       "class_name": "OpenWebUIContainer",
       "image": "registry.cloudflare.com/b6ec751c0862027ba269faf7029b2501/open-webui:0.11.3-slim",
-      "max_instances": 2,
+      // Leave room for the new hostname's container while old sessions drain.
+      "max_instances": 3,
       "instance_type": "standard-4",
       // Existing production placement. A new container's egress IP must be
       // allowed in the Azure PostgreSQL firewall.
