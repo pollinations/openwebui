@@ -12,7 +12,7 @@ the consent screen mints a budgeted `sk_` which Open WebUI forwards to
 `gen.pollinations.ai` per user (`auth_type: system_oauth`), so every chat is
 paid from the signed-in user's own wallet.
 
-- Public: https://openwebui.pollinations.ai (origin https://openwebui.myceli.ai)
+- Public: https://openwebui.pollinations.app (origin https://openwebui.myceli.ai)
 - Staging: https://openwebui-staging.elliot-b6e.workers.dev
 - Login: OAuth 2.1 code + PKCE against the environment's Enter URL. Public
   client, no secret. Discovery is the RFC 8414 document; Pollinations serves no
@@ -110,7 +110,7 @@ instead; an admin key or JWT is needed, and the script reads each form before
 changing it so `DEFAULT_MODEL_METADATA` (builtin tools off) is not reset:
 
 ```bash
-OWUI_URL=https://openwebui.pollinations.ai OWUI_ENTER_URL=https://enter.pollinations.ai OWUI_TOKEN=<admin key> node scripts/apply-ui-defaults.mjs
+OWUI_URL=https://openwebui.pollinations.app OWUI_ENTER_URL=https://enter.pollinations.ai OWUI_TOKEN=<admin key> node scripts/apply-ui-defaults.mjs
 ```
 
 No restart is needed; users see the change on their next page load. A user's
@@ -188,9 +188,23 @@ locked dependencies with lifecycle scripts disabled and exposes the token only
 to Wrangler. The account ID is public configuration in the workflow.
 
 Ordinary deploys retain the Worker’s existing `DATABASE_URL` and
-`WEBUI_SECRET_KEY`. CI does not receive the database password or SOPS key and
-does not push secrets, reseed database settings, rebuild the image or delete the
-container. Secret changes are separate, explicitly approved maintenance.
+`WEBUI_SECRET_KEY`. For an approved database cutover, update the encrypted
+production `DATABASE_URL` and the matching GitHub Actions `production`
+environment secret. Dispatch **Deploy / Cloudflare production** on `production`
+with `sync_database_url` enabled. Wrangler applies `DATABASE_URL` in the same
+deployment and preserves `WEBUI_SECRET_KEY`. The Azure connection starts a
+fresh container without deleting the EC2-backed instance. Confirm the fresh
+container's connections on the target database.
+
+Record the active Worker version before cutover and keep user writes paused
+through both the final database copy and verification. The production restore
+keeps accounts, chats, and document search. Skip `oauth_session` data and the
+legacy `config_before_*` snapshots so users sign in again and stale credentials
+stay out of Azure. Compare source and target row counts without logging records.
+If checks fail before reopening writes, dispatch the same production workflow
+with `rollback_worker_version` set to the recorded version and confirm the
+container is connected to EC2 before reopening. Once Azure has accepted
+user writes, reconcile those writes before pointing traffic back to EC2.
 
 Staging retains its existing configuration and database. An authorized operator
 can run `npm run deploy:staging`; changes to its secrets are separate. The
@@ -201,8 +215,13 @@ After the first deployment from this repository, verify the active Worker
 version and bindings, Pollinations login, existing chat history, a new chat and
 the MCP integration before retiring the monorepo deployment. Retiring the old
 `apps/openwebui/deploy.json` prevents two repositories from deploying the same
-Worker. The domain move to `.app` and any sandbox hosting experiment are separate
-changes.
+Worker.
+
+For the hostname cutover, register the new OAuth callback before deploying.
+After sign-in and chat work on `.app`, enable a permanent Cloudflare Redirect
+Rule from `openwebui.pollinations.ai` to `openwebui.pollinations.app` that preserves
+the path and query. Run `npm run verify -- --cutover` to verify both the
+new address and the redirect.
 
 To roll back a code change, revert it through `main` and promote the revert to
 `production`. To roll back the repository handoff, disable this repository’s
@@ -221,9 +240,10 @@ cold-starts. Verified on staging 2026-09-16: `/health/db` 0.9 s → 0.3 s.
 
 ## Login requirements on the Pollinations side
 
-- App Key (`pk_`) with the exact redirect URIs registered:
-  `https://openwebui.pollinations.ai/oauth/oidc/callback` and the staging one.
-  Non-loopback redirects must be HTTPS.
+- The production App Key (`pk_`) needs the exact callback URI
+  `https://openwebui.pollinations.app/oauth/oidc/callback`. Keep the existing
+  `.ai` callback registered through the cutover. Staging has its own App Key
+  and callback.
 - `OAUTH_CLIENT_SECRET` stays empty. With a secret, authlib switches to Basic
   auth and drops `client_id` from the token request, which the Pollinations
   token endpoint rejects.
