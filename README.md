@@ -220,10 +220,9 @@ the MCP integration before retiring the monorepo deployment. Retiring the old
 Worker.
 
 For the hostname cutover, register the new OAuth callback before deploying.
-After sign-in and chat work on `.app`, enable a permanent Cloudflare Redirect
-Rule from `openwebui.pollinations.ai` to `openwebui.pollinations.app` that preserves
-the path and query. Run `npm run verify -- --cutover` to verify both the
-new address and the redirect.
+After sign-in and chat work on `.app`, clear maintenance to activate the
+permanent `.ai` redirect. It preserves the path and query. Run
+`npm run verify -- --cutover` to verify both the new address and the redirect.
 
 To roll back a code change, revert it through `main` and promote the revert to
 `production`. To roll back the repository handoff, disable this repository’s

@@ -172,16 +172,26 @@ function openwebui(env) {
 
 export default {
     async fetch(request, env) {
-        const path = new URL(request.url).pathname;
+        const url = new URL(request.url);
         if (
             env.OPENWEBUI_CUTOVER_IP &&
             request.headers.get("CF-Connecting-IP") !== env.OPENWEBUI_CUTOVER_IP &&
-            !(request.method === "GET" && (path === "/health" || path === "/health/db"))
+            !(request.method === "GET" && (url.pathname === "/health" || url.pathname === "/health/db"))
         ) {
             return new Response("Open WebUI is temporarily unavailable while we move its database. Please try again shortly.", {
                 status: 503,
                 headers: { "Cache-Control": "no-store", "Retry-After": "300" },
             });
+        }
+        if (
+            CONTAINER_NAME === "azure" &&
+            !env.OPENWEBUI_CUTOVER_IP &&
+            url.hostname === "openwebui.pollinations.ai"
+        ) {
+            url.protocol = "https:";
+            url.hostname = "openwebui.pollinations.app";
+            url.port = "";
+            return Response.redirect(url.href, 308);
         }
         const response = await openwebui(env).fetch(request);
         if (response.webSocket) return response;
