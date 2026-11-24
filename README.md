@@ -38,12 +38,9 @@ Deploys then need no Docker, locally or in CI.
 
 ## State
 
-Container disk is wiped on every sleep. Users, chats and configuration live in Postgres (one
-instance on the `monitoring-agents` box, databases `openwebui` and
-`openwebui_staging`):
-`DATABASE_URL` holds users, chats, config, and the pgvector store. Uploaded
-files are still on local disk and do not survive a restart; switch to R2 via
-`STORAGE_PROVIDER=s3` when that matters.
+Users, chats, configuration, and pgvector indexes live in Azure PostgreSQL.
+Production and staging use separate databases. Container disk is ephemeral.
+Uploaded files kept only on that disk need to be uploaded again after a restart.
 
 RAG embeds locally with the bundled `sentence-transformers/all-MiniLM-L6-v2`
 (`RAG_EMBEDDING_ENGINE` unset). RAG, image and audio all authenticate with a
@@ -162,8 +159,8 @@ chats and users too. No container restart, no per-chat migration.
 ## Update the image
 
 ```bash
-# Needs a Docker daemon; use the monitoring-agents EC2 engine over SSH.
-DOCKER_HOST=ssh://community-monitor npm run push-image -- 0.11.3
+# Requires access to a Docker daemon.
+npm run push-image -- 0.11.3
 # then bump containers[].image in wrangler.jsonc (both envs)
 ```
 
@@ -189,36 +186,13 @@ locked dependencies with lifecycle scripts disabled and exposes the token only
 to Wrangler. The account ID is public configuration in the workflow.
 
 Ordinary deploys retain the Worker’s existing `DATABASE_URL` and
-`WEBUI_SECRET_KEY`. For an approved database cutover, update the encrypted
-production `DATABASE_URL` and the matching GitHub Actions `production`
-environment secret. Dispatch **Deploy / Cloudflare production** on `production`
-with `sync_database_url` enabled. Wrangler applies `DATABASE_URL` in the same
-deployment and preserves `WEBUI_SECRET_KEY`. The Azure connection starts a
-fresh container without deleting the EC2-backed instance. Confirm the fresh
-container's connections on the target database.
+`WEBUI_SECRET_KEY`. For an approved database connection change, use the
+production workflow's `sync_database_url` and `cutover_test_ip` inputs.
+Verify the app's database connection before dispatching without inputs to
+restore general access.
 
-Record the active Worker version before cutover and dispatch the deployment
-with `cutover_test_ip` to admit only the operator and the public health checks.
-Keep that IP set when dispatching `sync_database_url`. After testing with the
-operator account, dispatch without inputs to restore general access. The production restore
-keeps accounts, chats, and document search. Skip `oauth_session` data and the
-legacy `config_before_*` snapshots so users sign in again and stale credentials
-stay out of Azure. Compare source and target row counts without logging records.
-If checks fail before reopening writes, dispatch the same production workflow
-with `rollback_worker_version` set to the recorded version and confirm the
-container is connected to EC2 before reopening. Once Azure has accepted
-user writes, reconcile those writes before pointing traffic back to EC2.
-
-Staging retains its existing configuration and database. An authorized operator
-can run `npm run deploy:staging`; changes to its secrets are separate. The
-staging endpoint currently returns HTTP 403 (recorded before extraction on
-2026-10-31), so do not treat a successful dry run as a live staging test.
-
-After the first deployment from this repository, verify the active Worker
-version and bindings, Pollinations login, existing chat history, a new chat and
-the MCP integration before retiring the monorepo deployment. Retiring the old
-`apps/openwebui/deploy.json` prevents two repositories from deploying the same
-Worker.
+Staging uses its own configuration and database. After deploying with
+`npm run deploy:staging`, check `/health` and `/health/db` on its staging URL.
 
 The Cloudflare `pollinations.app` zone has an exact `openwebui.pollinations.app/*`
 route with no Worker assigned. It lets the Open WebUI custom domain handle
@@ -228,19 +202,14 @@ Run `npm run verify -- --redirect` to check both live hostnames and the legacy
 redirect.
 
 To roll back a code change, revert it through `main` and promote the revert to
-`production`. To roll back the repository handoff, disable this repository’s
-deployment workflow before restoring monorepo deployment ownership. Keep the
-same Worker, Durable Object, image and database; do not recreate them.
+`production`. An immediate Worker rollback requires a recorded version that
+uses the current Azure database.
 
 ## Placement
 
-The container is constrained to `ENAM` (`containers[].constraints.regions` in
-`wrangler.jsonc`) because Postgres is in AWS us-east-1. Unconstrained, Cloudflare
-starts the container nearest to whichever request woke it (it ran in Riga), and
-every DB session then costs ~3 transatlantic round trips (~0.45 s), which made
-each page load ~20 s. A deploy that changes the constraint rolls the single
-instance to the new region: expect ~5 min of 500/503 while the 1.5 GB image
-cold-starts. Verified on staging 2026-09-16: `/health/db` 0.9 s → 0.3 s.
+Production Cloudflare containers are constrained to `ENAM`. Azure PostgreSQL
+runs in Sweden Central. If Cloudflare replaces the container, verify its egress
+address and the Azure PostgreSQL firewall rule, then check `/health/db`.
 
 ## Login requirements on the Pollinations side
 
