@@ -183,16 +183,6 @@ export default {
                 headers: { "Cache-Control": "no-store", "Retry-After": "300" },
             });
         }
-        if (
-            CONTAINER_NAME === "azure" &&
-            !env.OPENWEBUI_CUTOVER_IP &&
-            url.hostname === "openwebui.pollinations.ai"
-        ) {
-            url.protocol = "https:";
-            url.hostname = "openwebui.pollinations.app";
-            url.port = "";
-            return Response.redirect(url.href, 308);
-        }
         const response = await openwebui(env).fetch(request);
         if (response.webSocket) return response;
         // Send the full chat URL as the referrer when a user follows a link

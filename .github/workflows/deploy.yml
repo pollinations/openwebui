@@ -105,11 +105,4 @@ jobs:
           node node_modules/wrangler/bin/wrangler.js deploy --env="" "${deploy_args[@]}"
           check_secret_bindings
       - name: Verify public endpoints and database
-        env:
-          ROLLBACK_WORKER_VERSION: ${{ inputs.rollback_worker_version }}
-        run: |
-          if [[ -n "$ROLLBACK_WORKER_VERSION" ]]; then
-            npm run verify -- --legacy
-          else
-            npm run verify
-          fi
+        run: npm run verify
