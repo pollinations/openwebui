@@ -9,14 +9,10 @@
     {
       "class_name": "OpenWebUIContainer",
       "image": "registry.cloudflare.com/b6ec751c0862027ba269faf7029b2501/open-webui:0.11.3-slim",
-      // Keep the EC2-backed instance available for rollback while Azure starts.
       "max_instances": 2,
       "instance_type": "standard-4",
-      // Postgres lives in AWS us-east-1. Without a constraint Cloudflare starts
-      // the container wherever the waking request is nearest (it landed in
-      // Riga), and every DB session then costs ~3 transatlantic round trips.
-      // Changing this does not move a running container: delete the container
-      // application and deploy again (see README).
+      // Existing production placement. A new container's egress IP must be
+      // allowed in the Azure PostgreSQL firewall.
       "constraints": { "regions": ["ENAM"] }
     }
   ],
@@ -24,7 +20,7 @@
     "bindings": [{ "name": "OPENWEBUI", "class_name": "OpenWebUIContainer" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpenWebUIContainer"] }],
-  // Same shape as floret/observability: myceli origin first, public alias second.
+  // The pollinations.app zone exempts this exact host from Gen's wildcard route.
   "routes": [
     {
       "pattern": "openwebui.myceli.ai",
@@ -45,7 +41,7 @@
   // Keep the single instance warm; a cold start pulls a ~1.5 GB image.
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
-    "WEBUI_URL": "https://openwebui.pollinations.ai",
+    "WEBUI_URL": "https://openwebui.pollinations.app",
     "GEN_URL": "https://gen.pollinations.ai/v1",
     "ENTER_URL": "https://enter.pollinations.ai",
     "MCP_URL": "https://mcp.pollinations.ai/",
