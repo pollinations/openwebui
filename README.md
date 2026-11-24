@@ -196,8 +196,10 @@ deployment and preserves `WEBUI_SECRET_KEY`. The Azure connection starts a
 fresh container without deleting the EC2-backed instance. Confirm the fresh
 container's connections on the target database.
 
-Record the active Worker version before cutover and keep user writes paused
-through both the final database copy and verification. The production restore
+Record the active Worker version before cutover and dispatch the deployment
+with `cutover_test_ip` to admit only the operator and the public health checks.
+Keep that IP set when dispatching `sync_database_url`. After testing with the
+operator account, dispatch without inputs to restore general access. The production restore
 keeps accounts, chats, and document search. Skip `oauth_session` data and the
 legacy `config_before_*` snapshots so users sign in again and stale credentials
 stay out of Azure. Compare source and target row counts without logging records.
@@ -218,10 +220,9 @@ the MCP integration before retiring the monorepo deployment. Retiring the old
 Worker.
 
 For the hostname cutover, register the new OAuth callback before deploying.
-After sign-in and chat work on `.app`, enable a permanent Cloudflare Redirect
-Rule from `openwebui.pollinations.ai` to `openwebui.pollinations.app` that preserves
-the path and query. Run `npm run verify -- --cutover` to verify both the
-new address and the redirect.
+After sign-in and chat work on `.app`, clear maintenance to activate the
+permanent `.ai` redirect. It preserves the path and query. Run
+`npm run verify -- --cutover` to verify both the new address and the redirect.
 
 To roll back a code change, revert it through `main` and promote the revert to
 `production`. To roll back the repository handoff, disable this repository’s

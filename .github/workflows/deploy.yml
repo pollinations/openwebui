@@ -13,6 +13,9 @@ on:
       rollback_worker_version:
         description: Restore a previously deployed Worker version during cutover
         type: string
+      cutover_test_ip:
+        description: Restrict Open WebUI to this verifier IP during maintenance
+        type: string
 
 permissions:
   contents: read
@@ -61,6 +64,7 @@ jobs:
           SYNC_DATABASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_database_url }}
           DATABASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_database_url && secrets.DATABASE_URL || '' }}
           ROLLBACK_WORKER_VERSION: ${{ inputs.rollback_worker_version }}
+          CUTOVER_TEST_IP: ${{ inputs.cutover_test_ip }}
         run: |
           check_secret_bindings() {
             curl --fail --silent --show-error \
@@ -70,8 +74,8 @@ jobs:
           }
           check_secret_bindings
           if [[ -n "$ROLLBACK_WORKER_VERSION" ]]; then
-            if [[ "$SYNC_DATABASE_URL" == true || ! "$ROLLBACK_WORKER_VERSION" =~ ^[[:xdigit:]]{8}(-[[:xdigit:]]{4}){3}-[[:xdigit:]]{12}$ ]]; then
-              echo 'Use a Worker version UUID and leave sync_database_url off for rollback.' >&2
+            if [[ "$SYNC_DATABASE_URL" == true || -n "$CUTOVER_TEST_IP" || ! "$ROLLBACK_WORKER_VERSION" =~ ^[[:xdigit:]]{8}(-[[:xdigit:]]{4}){3}-[[:xdigit:]]{12}$ ]]; then
+              echo 'Use only a Worker version UUID for rollback.' >&2
               exit 1
             fi
             node node_modules/wrangler/bin/wrangler.js rollback "$ROLLBACK_WORKER_VERSION" --env="" --yes --message "Open WebUI database cutover rollback"
@@ -79,7 +83,15 @@ jobs:
             exit
           fi
           deploy_args=()
+          if [[ -n "$CUTOVER_TEST_IP" ]]; then
+            node -e 'if (!require("node:net").isIP(process.argv[1])) process.exit(1)' "$CUTOVER_TEST_IP"
+            deploy_args+=(--var "OPENWEBUI_CUTOVER_IP:$CUTOVER_TEST_IP")
+          fi
           if [[ "$SYNC_DATABASE_URL" == true ]]; then
+            if [[ -z "$CUTOVER_TEST_IP" ]]; then
+              echo 'Set the verifier IP before a database cutover.' >&2
+              exit 1
+            fi
             if [[ -z "$DATABASE_URL" ]]; then
               echo 'DATABASE_URL is missing from the production environment.' >&2
               exit 1
